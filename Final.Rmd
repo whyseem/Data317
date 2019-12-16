@@ -1,0 +1,143 @@
+---
+title: "Final Forecast"
+output: html_notebook
+---
+
+```{r}
+source('http://faculty.cord.edu/reber/R/import.R')
+
+import.package('fpp2')
+import.package('tidyr')
+import.package('dplyr')
+```
+
+```{r}
+data <- read.csv('https://raw.githubusercontent.com/whyseem/Data317/master/DALY.csv')
+data$val <- as.numeric(data$val)
+head(data)
+depression <- data %>%
+  filter(cause == "Major depressive disorder") %>%
+  select(year, val) %>%
+  arrange(year) %>%
+  select(val)
+depression
+drugs <- data %>%
+  filter(cause == "Drug use disorders") %>%
+  select(year, val) %>%
+  arrange(year) %>%
+  select(val)
+drugs
+bipolar <- data %>%
+  filter(cause == "Bipolar disorder") %>%
+  select(year, val) %>%
+  arrange(year) %>%
+  select(val)
+bipolar
+anxiety <- data %>%
+  filter(cause == "Anxiety disorders") %>%
+  select(year, val) %>%
+  arrange(year) %>%
+  select(val)
+anxiety
+names(depression)[1] <- "depression"
+depression['drugs'] = drugs['val']
+depression['bipolar'] = bipolar['val']
+depression['anxiety'] = anxiety['val']
+depression
+```
+
+```{r}
+depts<-ts(depression)
+autoplot(depts, facets=TRUE)
+drugsts<-ts(drugs)
+autoplot(drugsts)
+bipolarts<-ts(bipolar)
+autoplot(bipolarts)
+anxietyts<-ts(anxiety)
+autoplot(anxietyts)
+depts
+```
+
+```{r}
+cor(depts['depression'], depts['drugs'])
+fit <- tslm(depts[,'depression'] ~ depts[,'drugs'])
+checkresiduals(fit)
+fit
+```
+
+```{r}
+(fitted <- auto.arima(depts[,'depression'], xreg=depts[,'drugs']))
+```
+
+```{r}
+checkresiduals(fitted)
+fitted
+```
+
+
+```{r}
+(fc <- forecast(fitted, xreg=matrix(rep(736407.4,20))))
+autoplot(fc) + xlab("Year") + ylab("Depression DALY")
+```
+
+```{r}
+autoplot(depts[,'depression']) +
+  autolayer(fc) + 
+  labs(y="Depression DALY",  title="Auto Arima forecast for Depression DALY")
+```
+
+```{r}
+Dep <- cbind(
+    AdLag0 = depts[,'drugs'],
+    AdLag1 = stats::lag(depts[,'drugs'],-1),
+    AdLag2 = stats::lag(depts[,'drugs'],-2),
+    AdLag3 = stats::lag(depts[,'drugs'],-3)) %>%
+  head(NROW(depts))
+Dep
+```
+
+```{r}
+fit1 <- auto.arima(depts[4:28,1], xreg=Dep[4:28,1],
+  stationary=TRUE)
+fit2 <- auto.arima(depts[4:28,1], xreg=Dep[4:28,1:2],
+  stationary=TRUE)
+fit3 <- auto.arima(depts[4:28,1], xreg=Dep[4:28,1:3],
+  stationary=TRUE)
+fit4 <- auto.arima(depts[4:28,1], xreg=Dep[4:28,1:4],
+  stationary=TRUE)
+c(fit1[["aicc"]],fit2[["aicc"]],fit3[["aicc"]],fit4[["aicc"]])
+```
+
+```{r}
+(fit <- auto.arima(depts[,1], xreg=Dep[,1:2],
+  stationary=TRUE))
+checkresiduals(fit)
+```
+
+```{r}
+laggedfc <- forecast(fit, h=20,
+  xreg=cbind(AdLag0 = rep(736407.4,20),
+             AdLag1 = c(Dep[28,1], rep(736407.4,19))))
+autoplot(laggedfc) + ylab("Depression DALY") +
+  ggtitle("Forecast Depression DALY w/ future drug abuse DALY set to 736407")
+```
+
+
+# Using Anxiety as single regressor
+
+```{r}
+(fitted <- auto.arima(depts[,'depression'], xreg=depts[,'anxiety']))
+```
+
+```{r}
+checkresiduals(fitted)
+fitted
+```
+
+```{r}
+(fc <- forecast(fitted, xreg=matrix(rep(154988.2,20))))
+autoplot(fc) + xlab("Year") + ylab("Depression DALY")
+```
+
+
+
