@@ -1,7 +1,12 @@
 ---
 title: "Final Forecast"
 output: html_notebook
+author: Joseph Addy
 ---
+
+# Instructions
+# -------------
+# This notebook will run right out of the box with no other steps   # needed
 
 ```{r}
 source('http://faculty.cord.edu/reber/R/import.R')
@@ -47,7 +52,7 @@ depression
 ```
 
 ```{r}
-depts<-ts(depression)
+depts<-ts(depression, start=1990)
 autoplot(depts, facets=TRUE)
 drugsts<-ts(drugs)
 autoplot(drugsts)
@@ -62,7 +67,7 @@ depts
 cor(depts['depression'], depts['drugs'])
 fit <- tslm(depts[,'depression'] ~ depts[,'drugs'])
 checkresiduals(fit)
-fit
+summary(fit)
 ```
 
 ```{r}
@@ -74,24 +79,19 @@ checkresiduals(fitted)
 fitted
 ```
 
-
+# to forecast the next 20 years I will assume drug abuse DALY will stay at the last recorded measure (736407.4)
 ```{r}
 (fc <- forecast(fitted, xreg=matrix(rep(736407.4,20))))
 autoplot(fc) + xlab("Year") + ylab("Depression DALY")
 ```
 
-```{r}
-autoplot(depts[,'depression']) +
-  autolayer(fc) + 
-  labs(y="Depression DALY",  title="Auto Arima forecast for Depression DALY")
-```
-
+# I will try to improve the model by using lagged predictors and hopefully captruing the upward trend.
 ```{r}
 Dep <- cbind(
-    AdLag0 = depts[,'drugs'],
-    AdLag1 = stats::lag(depts[,'drugs'],-1),
-    AdLag2 = stats::lag(depts[,'drugs'],-2),
-    AdLag3 = stats::lag(depts[,'drugs'],-3)) %>%
+    DepLag0 = depts[,'drugs'],
+    DepLag1 = stats::lag(depts[,'drugs'],-1),
+    DepLag2 = stats::lag(depts[,'drugs'],-2),
+    DepLag3 = stats::lag(depts[,'drugs'],-3)) %>%
   head(NROW(depts))
 Dep
 ```
@@ -109,15 +109,15 @@ c(fit1[["aicc"]],fit2[["aicc"]],fit3[["aicc"]],fit4[["aicc"]])
 ```
 
 ```{r}
-(fit <- auto.arima(depts[,1], xreg=Dep[,1:2],
+(laggedfit <- auto.arima(depts[,1], xreg=Dep[,1:2],
   stationary=TRUE))
-checkresiduals(fit)
+checkresiduals(laggedfit)
 ```
 
 ```{r}
-laggedfc <- forecast(fit, h=20,
-  xreg=cbind(AdLag0 = rep(736407.4,20),
-             AdLag1 = c(Dep[28,1], rep(736407.4,19))))
+laggedfc <- forecast(laggedfit, h=20,
+  xreg=cbind(DepLag0 = rep(736407.4,20),
+             DepLag1 = c(Dep[28,1], rep(736407.4,19))))
 autoplot(laggedfc) + ylab("Depression DALY") +
   ggtitle("Forecast Depression DALY w/ future drug abuse DALY set to 736407")
 ```
